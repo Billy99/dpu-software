@@ -86,7 +86,7 @@ The [install-ovs.sh](../scripts/install-ovs.sh) script will build and install Ov
 Run the script in the Infra VM.
 
 ```console
-cd ~/src/dpu-software/
+cd ${WORKING_DIR}/dpu-software/
 ./scripts/install-ovs.sh
 ```
 
@@ -177,7 +177,7 @@ The [infra-setup.sh](../scripts/infra-setup.sh) script requires the node number 
 as a parameter, so pass a `1` since this is the `infra-1` VM.
 
 ```console
-cd ~/src/dpu-software/
+cd ${WORKING_DIR}/dpu-software/
 sudo ./scripts/infra-setup.sh 1
 
 sudo reboot
@@ -252,7 +252,7 @@ as the Container Runtime.
 Run the script in the Infra VM.
 
 ```console
-cd ~/src/dpu-software/
+cd ${WORKING_DIR}/dpu-software/
 sudo ./scripts/install-crio.sh
 ```
 
@@ -283,7 +283,7 @@ Containerd as the Container Runtime.
 Run the script in the Infra VM.
 
 ```console
-cd ~/src/dpu-software/
+cd ${WORKING_DIR}/dpu-software/
 sudo ./scripts/install-containerd.sh
 ```
 
@@ -307,7 +307,7 @@ Kubernetes.
 Run the script in the Infra VM.
 
 ```console
-cd ~/src/dpu-software/
+cd ${WORKING_DIR}/dpu-software/
 sudo ./scripts/install-kubernetes.sh
 ```
 
@@ -345,7 +345,7 @@ OVN-Kubernetes.
 Run the script in the Infra VM.
 
 ```console
-cd ~/src/dpu-software/
+cd ${WORKING_DIR}/dpu-software/
 ./scripts/install-ovnk.sh
 ```
 
@@ -358,136 +358,4 @@ As a summary, the script above performs the following:
 * Build OVN-Kubernetes container image.
 * Push OVN-Kubernetes container image to HTTP Registry on Gateway.
 
-
-
-
-
-Create OVN StatefulSet, DaemonSet and Deployment yamls:
-
-```console
-export MASTER_IP=192.168.122.70
-pushd dist/images/
-./daemonset.sh --output-directory=$WORKING_DIR/ovn-kubernetes/dist/yaml \
-   --image=$OVN_IMAGE \
-   --ovnkube-image=$OVN_IMAGE \
-   --net-cidr=10.244.0.0/16 \
-   --svc-cidr=10.96.0.0/16 \
-   --gateway-mode=shared \
-   --gateway-options= \
-   --enable-ipsec=false \
-   --hybrid-enabled=false \
-   --disable-snat-multiple-gws=false \
-   --disable-forwarding=false \
-   --disable-pkt-mtu-check=false \
-   --ovn-empty-lb-events=false \
-   --multicast-enabled=false \
-   --k8s-apiserver=https://$MASTER_IP:6443 \
-   --ovn-master-count=1 \
-   --ovn-unprivileged-mode=no \
-   --master-loglevel=5 \
-   --node-loglevel=5 \
-   --dbchecker-loglevel=5 \
-   '--ovn-loglevel-northd=-vconsole:info -vfile:info' \
-   '--ovn-loglevel-nb=-vconsole:info -vfile:info' \
-   '--ovn-loglevel-sb=-vconsole:info -vfile:info' \
-   --ovn-loglevel-controller=-vconsole:info \
-   --ovnkube-config-duration-enable=true \
-   --egress-ip-enable=true \
-   --egress-ip-healthcheck-port=9107 \
-   --egress-firewall-enable=true \
-   --egress-qos-enable=true \
-   --v4-join-subnet=100.64.0.0/16 \
-   --v6-join-subnet=fd98::/64 \
-   --ex-gw-network-interface= \
-   --multi-network-enable=false \
-   --ovnkube-metrics-scale-enable=false \
-   --compact-mode=false
-popd
-```
-
 > Virtual Machine Commands: END
-
-
-## Start Kubernetes
-
-```console
-sudo kubeadm init --token-ttl 0 --pod-network-cidr=10.244.0.0/16 --cri-socket=unix:///var/run/containerd/containerd.sock
-:
-addons] Applied essential addon: CoreDNS
-[addons] Applied essential addon: kube-proxy
-
-Your Kubernetes control-plane has initialized successfully!
-
-To start using your cluster, you need to run the following as a regular user:
-
-  mkdir -p $HOME/.kube
-  sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
-  sudo chown $(id -u):$(id -g) $HOME/.kube/config
-
-Alternatively, if you are the root user, you can run:
-
-  export KUBECONFIG=/etc/kubernetes/admin.conf
-
-You should now deploy a pod network to the cluster.
-Run "kubectl apply -f [podnetwork].yaml" with one of the options listed at:
-  https://kubernetes.io/docs/concepts/cluster-administration/addons/
-
-Then you can join any number of worker nodes by running the following on each as root:
-
-kubeadm join 192.168.122.70:6443 --token vgp7i3.fn12uc2mztw6gdoj \
-	--discovery-token-ca-cert-hash sha256:133a1dce9751e74f63810be1f3238537dd6792926f35214813fcc95098a52726 
-```
-
-## Start OVN-Kubernetes
-
-br-int might be added by OVN, but the files for it are not created in `/var/run/openvswitch`.
-
-```console
-kubectl logs -n ovn-kubernetes ovnkube-node-2lhq7 -c ovn-controller
-:
-2023-04-18T21:42:33.907Z|00043|rconn|WARN|unix:/var/run/openvswitch/br-int.mgmt: connection failed (No such file or directory)
-2023-04-18T21:42:41.915Z|00044|rconn|WARN|unix:/var/run/openvswitch/br-int.mgmt: connection failed (No such file or directory)
-2023-04-18T21:42:41.915Z|00045|rconn|WARN|unix:/var/run/openvswitch/br-int.mgmt: connection failed (No such file or directory)
-:
-```
-
-The best workaroud is to pre-create br-int before the OVN Kubernetes installation:
-```console
-sudo ovs-vsctl add-br br-int
-```
-
-
-```console
-# Create OVN namespace, service accounts, ovnkube-db headless service, configmap, and policies
-kubectl create -f $WORKING_DIR/ovn-kubernetes/dist/yaml/ovn-setup.yaml
-
-# Optionally, if you plan to use the Egress IPs or EgressFirewall features, create the corresponding CRDs:
-# create egressips.k8s.ovn.org CRD
-kubectl create -f $WORKING_DIR/ovn-kubernetes/dist/yaml/k8s.ovn.org_egressips.yaml
-# create egressfirewalls.k8s.ovn.org CRD
-kubectl create -f $WORKING_DIR/ovn-kubernetes/dist/yaml/k8s.ovn.org_egressfirewalls.yaml
-
-# Run ovnkube-db deployment.
-kubectl create -f $WORKING_DIR/ovn-kubernetes/dist/yaml/ovnkube-db.yaml
-
-# Run ovnkube-master deployment
-# To run ovnkube-master deployment with both cluster manager and network controller manager as one container)
-kubectl create -f $WORKING_DIR/ovn-kubernetes/dist/yaml/ovnkube-master.yaml
-
-# or to run ovnkube-master deployment with cluster manager and network controller manager as independent containers.
-#kubectl create -f $WORKING_DIR/ovn-kubernetes/dist/yaml/ovnkube-cm-ncm.yaml
-
-# Run ovnkube daemonset for nodes
-kubectl create -f $WORKING_DIR/ovn-kubernetes/dist/yaml/ovnkube-node.yaml
-
-kubectl delete daemonsets -n kube-system kube-proxy
-```
-
-
-In order to uninstall OVN kubernetes:
-```console
-kubectl delete -f $WORKING_DIR/ovn-kubernetes/dist/yaml/ovnkube-node.yaml
-kubectl delete -f $WORKING_DIR/ovn-kubernetes/dist/yaml/ovnkube-master.yaml
-kubectl delete -f $WORKING_DIR/ovn-kubernetes/dist/yaml/ovnkube-db.yaml
-kubectl delete -f $WORKING_DIR/ovn-kubernetes/dist/yaml/ovn-setup.yaml
-```

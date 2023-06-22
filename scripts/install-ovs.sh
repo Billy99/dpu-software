@@ -19,12 +19,12 @@ echo
 echo "#################################"
 echo "Download OvS ..."
 echo "#################################"
-mkdir -p ~/src/
-pushd ~/src/
+mkdir -p ${WORKING_DIR}
+pushd ${WORKING_DIR} &>/dev/null
 git clone https://github.com/openvswitch/ovs.git
-popd
+popd &>/dev/null
 
-pushd ~/src/ovs/
+pushd ${WORKING_DIR}/ovs/ &>/dev/null
 
 
 echo
@@ -68,6 +68,10 @@ if [ "$DISABLE_FIREWALLD" == false ] ; then
 
    sudo firewall-cmd --reload
 fi
+
+
+# Leave ovs directory
+popd &>/dev/null
 
 
 if [[ "$CALL_POPD" == true ]]; then

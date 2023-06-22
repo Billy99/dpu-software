@@ -73,7 +73,7 @@ as the Container Runtime.
 Run the script in the Infra VM.
 
 ```console
-cd ~/src/dpu-software/
+cd ${WORKING_DIR}/dpu-software/
 sudo ./scripts/install-crio.sh
 ```
 
@@ -108,7 +108,7 @@ Containerd as the Container Runtime.
 Run the script in the Infra VM.
 
 ```console
-cd ~/src/dpu-software/
+cd ${WORKING_DIR}/dpu-software/
 sudo ./scripts/install-containerd.sh
 ```
 
@@ -132,7 +132,7 @@ configure Kubernetes.
 Run the script in the Infra VM.
 
 ```console
-cd ~/src/dpu-software/
+cd ${WORKING_DIR}/dpu-software/
 sudo ./scripts/install-kubernetes.sh
 ```
 

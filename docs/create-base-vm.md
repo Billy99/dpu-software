@@ -38,9 +38,9 @@ sudo dnf install -y podman python3-pip
 Download this repository for a local copy of the scripts:
 
 ```console
-mkdir -p ~/src/; cd ~/src/
+mkdir -p ${WORKING_DIR}; cd ${WORKING_DIR}
 git clone https://github.com/Billy99/dpu-software.git
-cd ~/src/dpu-software/
+cd ${WORKING_DIR}/dpu-software/
 ```
 
 If there are any non-default settings to use, update
@@ -291,8 +291,8 @@ $ ssh ${USER}@${GOLDEN_IP}
 
 > Remote Server Commands: BEGIN
 
-Optional, but may be useful to record the IP Address of each VM in the `~/.bashrc`
- in an alias for easy login to each VM, something like:
+Optional, but it may be useful to record the IP Address of each VM in the `~/.bashrc`
+in an alias for easy login to each VM, something like:
 
 ```console
 vi ~/.bashrc
@@ -311,26 +311,39 @@ alias vmt1='svm 181'
 alias vmt2='svm 39'
 alias vmt3='svm 62'
 alias vmt4='svm 185'
-
-svmhelp() {
-   echo ""
-   echo " vmgd - svm 142 - golden-fedora-37"
-   echo " vmg1 - svm 138 - gw-1"
-   echo " vmi1 - svm 194 - infra-1"
-   echo " vmi2 - svm 193 - infra-2"
-   echo " vmi3 - svm 52  - infra-3"
-   echo " vmt1 - svm 181 - tenant-1"
-   echo " vmi2 - svm 39  - tenant-2"
-   echo " vmi3 - svm 62  - tenant-3"
-   echo " vmi4 - svm 185 - tenant-4"
-   echo ""
-}
 ```
 
 Remember to reload the file after each edit:
 
 ```console
 . ~/.bashrc
+```
+
+There is a script to collect all the IP addresses.
+When run with the `bashrc` parameter, the output will be in the alias format above.
+If the VM isn't created yet, it will be skipped.
+
+```console
+$ sudo ./get-vm-ips.sh bashrc
+
+#################################
+Variables ...
+#################################
+GATEWAY_LIST         = gw-1
+INFRA_CTRL_LIST      = infra-1
+INFRA_DPU_LIST       = infra-2 infra-3
+TENANT_CTRL_LIST     = tenant-1
+TENANT_DPU_HOST_LIST = tenant-2 tenant-3
+TENANT_WORKER_LIST   = tenant-4
+
+alias vmg1='svm 138'
+alias vmi1='svm 194'
+alias vmi2='svm 193'
+alias vmi3='svm 52'
+alias vmt1='svm 181'
+alias vmt2='svm 39'
+alias vmt3='svm 62'
+alias vmt4='svm 185'
 ```
 
 > Remote Server Commands: END
@@ -372,9 +385,9 @@ $USER ALL=(ALL) NOPASSWD:ALL
 Download this repository in the Golden VM for a local copy of the scripts:
 
 ```console
-mkdir -p ~/src/; cd ~/src/
+mkdir -p ${WORKING_DIR}; cd ${WORKING_DIR}
 git clone https://github.com/Billy99/dpu-software.git
-cd ~/src/dpu-software/
+cd ${WORKING_DIR}/dpu-software/
 ```
 
 If any non-default settings were made on the Remote Server, update
