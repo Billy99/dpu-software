@@ -13,20 +13,23 @@ fi
 # Source the variables in other files
 . variables.sh
 
+node_name=$1
+if [[ -z "${node_name}" ]]; then
+    NODE_NAME=$(hostname -s)
+else
+    NODE_NAME=${node_name}
+fi
+
 # Based on hostname, determine Node Number and if this is infra or tenant
-NODE_NAME=$(hostname -s)
 NODE_NUM=${NODE_NAME#*-}
 NODE_PREFIX=${NODE_NAME%-*}
 
-if [ "${NODE_PREFIX}" == "infra" ] ; then
+if [[ "${NODE_PREFIX}" == "infra" ]] ; then
     IP_ADDRESS="${INFRA_OCTETS}.${NODE_NUM}/24"
     GATEWAY_IP_ADDRESS=${INFRA_GATEWAY_IP_ADDRESS}
-elif [ "${NODE_PREFIX}" == "tenant" ] ; then
+elif [[ "${NODE_PREFIX}" == "tenant" ]] ; then
     IP_ADDRESS="${TENANT_OCTETS}.${NODE_NUM}/24"
     GATEWAY_IP_ADDRESS=${TENANT_GATEWAY_IP_ADDRESS}
-else
-    echo "Unable to parse hostname: ${NODE_NAME}"
-    exit 1
 fi
 
 NODE_TYPE=$(get_node_type ${NODE_NAME})
@@ -55,43 +58,50 @@ if [[ ${NODE_TYPE} == ${GATEWAY_NODE} ]] || \
 fi
 
 
-if [[ ${NODE_TYPE} == ${DPU_HOST_NODE} ]] || \
-   [[ ${NODE_TYPE} == ${DPU_NODE} ]]; then
-    echo
-    echo "#################################"
-    echo "Manage TAP Interface ..."
-    echo "#################################"
-    # Get the list of "Wired Connection x", and rename to the device name. Depending on the
-    # state of the device, the output is either
-    # $ sudo nmcli conn
-    # NAME                 UUID                                  TYPE           DEVICE 
-    # Wired connection 1   f31bf84c-a17f-38d0-b1ea-4231bc285c29  ethernet       --     
-    # Wired connection 2   18b3021e-ef84-3814-b795-40c36b6042fb  ethernet       --     
-    # :
-    # OR
-    # $ sudo nmcli conn
-    # NAME                 UUID                                  TYPE           DEVICE
-    # Wired connection 1   f31bf84c-a17f-38d0-b1ea-4231bc285c29  ethernet       enp2s0f1
-    # Wired connection 2   18b3021e-ef84-3814-b795-40c36b6042fb  ethernet       enp2s0f2
-    # :
-    # The first `awk` command pulls out "Wired connection 1" and the second `awk`
-    # command pulls out the number (easier to manage an array of numbers instead
-    # of an array of words like "Wired connection 1 Wired connection 2 ...")
-    CONNECTION_ARRAY=($(nmcli conn show | grep "Wired connection" | awk -F' {2,}' '{print $1}' | awk -F' ' '{print $3}'))
-    for CONN_NUM in "${CONNECTION_ARRAY[@]}"
-    do
-        CONN_NAME="Wired connection ${CONN_NUM}"
-        DEVICE=$(nmcli conn show "${CONN_NAME}" | grep connection.interface-name | awk -F' ' '{print $2}')
-        echo "Remapping ${CONN_NAME} to ${DEVICE}"
-        nmcli conn mod "${CONN_NAME}" con-name ${DEVICE}
-        nmcli conn mod ${DEVICE} connection.autoconnect no
-    done
-fi
+echo
+echo "#################################"
+echo "Setup Hostname ..."
+echo "#################################"
+echo "Set hostname to ${NODE_NAME}"
+hostnamectl set-hostname ${NODE_NAME}
+nmcli general hostname ${NODE_NAME}
+
+
+echo
+echo "#################################"
+echo "Rename \"Wired connection x\" (2nd and TAP Interfaces) ..."
+echo "#################################"
+# Get the list of "Wired Connection x", and rename to the device name. Depending on the
+# state of the device, the output is either
+# $ sudo nmcli conn
+# NAME                 UUID                                  TYPE           DEVICE 
+# Wired connection 1   f31bf84c-a17f-38d0-b1ea-4231bc285c29  ethernet       --     
+# Wired connection 2   18b3021e-ef84-3814-b795-40c36b6042fb  ethernet       --     
+# :
+# OR
+# $ sudo nmcli conn
+# NAME                 UUID                                  TYPE           DEVICE
+# Wired connection 1   f31bf84c-a17f-38d0-b1ea-4231bc285c29  ethernet       enp2s0f1
+# Wired connection 2   18b3021e-ef84-3814-b795-40c36b6042fb  ethernet       enp2s0f2
+# :
+# The first `awk` command pulls out "Wired connection 1" and the second `awk`
+# command pulls out the number (easier to manage an array of numbers instead
+# of an array of words like "Wired connection 1 Wired connection 2 ...")
+CONNECTION_ARRAY=($(nmcli conn show | grep "Wired connection" | awk -F' {2,}' '{print $1}' | awk -F' ' '{print $3}'))
+for CONN_NUM in "${CONNECTION_ARRAY[@]}"
+do
+    CONN_NAME="Wired connection ${CONN_NUM}"
+    DEVICE=$(nmcli conn show "${CONN_NAME}" | grep connection.interface-name | awk -F' ' '{print $2}')
+    echo "Remapping ${CONN_NAME} to ${DEVICE}"
+    nmcli conn mod "${CONN_NAME}" con-name ${DEVICE}
+    nmcli conn mod ${DEVICE} connection.autoconnect no
+done
+
 
 if [[ ${NODE_TYPE} == ${DPU_HOST_NODE} ]]; then
     echo
     echo "#################################"
-    echo "Delete OvS br-ex bridge ..."
+    echo "Delete OvS br-ex bridge, if needed ..."
     echo "#################################"
     # Delete br-ex and associated ports
     if [ ! -z $(nmcli conn show | awk -F' {2,}' '{print $1}' | grep -w "ovs-port-${BRIDGE_NAME}") ]; then
@@ -124,13 +134,18 @@ if [[ ${NODE_TYPE} == ${DPU_HOST_NODE} ]]; then
     echo "#################################"
     echo "Bind ${TAP_0} to host network and assign IP Address ..."
     echo "#################################"
+
+    echo "Management Interface: Set ${IF1} to DHCP"
+    nmcli conn mod ${IF1} ipv4.never-default yes
+    nmcli device reapply ${IF1}
+
+    echo "Tenant Interface: Set ${TAP_0} to ${IP_ADDRESS}"
     nmcli conn mod ${TAP_0} ipv4.address ${IP_ADDRESS}
     nmcli conn mod ${TAP_0} ipv4.method static
     nmcli conn mod ${TAP_0} ipv4.route-metric 50
-    # Move the default route to br-ex
+    # Move the default route to VF-0
     nmcli conn mod ${TAP_0} ipv4.gateway ${GATEWAY_IP_ADDRESS}
-    nmcli conn mod ${IF1} ipv4.never-default yes
-    nmcli device reapply ${IF1}
+    nmcli conn up ${TAP_0}
     nmcli device reapply ${TAP_0}
 fi
 
@@ -141,13 +156,6 @@ if [[ ${NODE_TYPE} == ${CONTROLLER_NODE} ]] || \
     echo "#################################"
     echo "Setup OvS br-ex bridge ..."
     echo "#################################"
-    # Rename Interface-2
-    CONN_NAME="Wired connection 1"
-    if [ ! -z $(nmcli conn show | awk -F' {2,}' '{print $1}' | grep -w "${CONN_NAME}") ]; then
-        DEVICE=$(nmcli conn show "${CONN_NAME}" | grep connection.interface-name | awk -F' ' '{print $2}')
-        echo "Remapping ${CONN_NAME} to ${DEVICE}"
-        nmcli conn mod "${CONN_NAME}" con-name ${DEVICE}
-    fi
     # Create and Configure br-ex and associated ports
     if [ -z $(nmcli conn show | awk -F' {2,}' '{print $1}' | grep -w "^${BRIDGE_NAME}") ]; then
         echo "Adding ${BRIDGE_NAME}"

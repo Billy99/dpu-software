@@ -73,14 +73,21 @@ Create Remaining VMs for Infra and Tenant Clusters:
 
 * [Create Remaining VMs](docs/create-remaining-vms.md)
 
+Configure CNI Networking:
+
+* [Configure OVN-Kubernetes Networking](docs/config-ovnk.md)
+
+Start and Configure Kubernetes:
+
+* [Launch Kubernetes with CNI OVN-Kubernetes](docs/launch-k8s-ovnk.md)
+
+
 ## Status
 
 This project is not complete.
 Below are the items that still need to be completed:
 
 * On DPUs (`infra-2` and `infra-3`), plumb VF0 (`tapx-vf0-i`) into OvS.
-* Change XML on all Tenant VMS to use `tenant` network.
 * Figure out how to plumb TAPs into OVN-Kubernetes
-* Increase number of VFs from 10 to 20.
 * Update docs to launch Kubernetes.
 * Update docs to deploy OVN-Kubernetes in different modes.

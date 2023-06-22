@@ -3,7 +3,8 @@
 OVN-Kubernetes needs to be installed on all the VMs except the
 Gateway Node and OvS needs to be installed on all the VMs except the
 Gateway Node and servers hosting the DPUs (`tenant-2` and `tenant-3`).
-So `infra-1` will be cloned before installing OvS.
+So `tenant-2` and `tenant-3` will be cloned from `infra-1` will be cloned
+before installing OvS.
 OvS will be install in the `infra-1` VM, then later, that VM will be
 cloned to other VMs.
 
@@ -13,8 +14,6 @@ different OPI APIs.
 So OVN-Kubernetes will be downloaded to the Remote Server where container
 images will be built and then pushed to the registry on the Gateway Node
 as additional changes are made.
-
-![OVN-Kubernetes Dataplane](images/OVNK_Dataplane.png)
 
 ## Create Servers Hosting DPUs Before Installing OvS
 
@@ -26,7 +25,7 @@ then restart it.
 Close any open session to `infra-1` then run the script.
 
 ```console
-cd ~/src/dpu-software/
+cd ${WORKING_DIR}/dpu-software/
 sudo ./scripts/create-dpu-host-vms.sh
 ```
 
@@ -86,7 +85,7 @@ The [install-ovs.sh](../scripts/install-ovs.sh) script will build and install Ov
 Run the script in the Infra VM.
 
 ```console
-cd ~/src/dpu-software/
+cd ${WORKING_DIR}/dpu-software/
 ./scripts/install-ovs.sh
 ```
 
@@ -163,70 +162,6 @@ a0317764-2bb2-47fb-9a68-e268460335dc
 
 > Virtual Machine `infra-1` Commands: END
 
-### Configure OVN-Kubernetes Networking
-
-> Virtual Machine `infra-1` Commands: BEGIN
-
-To configure OvS to be used with OVN-Kubernetes, the following guide was used:
-* https://github.com/ovn-org/ovn-kubernetes/blob/master/docs/INSTALL.KUBEADM.md#configure-networking
-
-The [config-ovnk-network.sh](../scripts/config-ovnk-network.sh) script will configure
-OvS for the VM as needed.
-Run the script in the `infra-1` VM, then reboot the VM.
-The [config-ovnk-network.sh](../scripts/config-ovnk-network.sh) script uses the VM
-hostname to determine the `NODE_NUM`, which is used to IP Addresses.
-
-```console
-cd ~/src/dpu-software/
-sudo ./scripts/config-ovnk-network.sh
-
-sudo reboot
-```
-
-**Summary:**
-As a summary, the script above performs the following:
-
-* Set the IP address on `br-ext` and configures the routing.
-* Configure DNS.
-
-Once the Infra VM is back, make sure the system is configured properly:
-
-```console
-$ ip route
-default via 192.168.200.254 dev br-ex proto static metric 50 
-192.168.122.0/24 dev enp1s0 proto kernel scope link src 192.168.122.193 metric 100 
-192.168.200.0/24 dev br-ex proto kernel scope link src 192.168.200.1 metric 50 
-
-$ sudo ovs-vsctl show
-7c1b494b-0d35-4e7b-b605-2e2cec31453a
-    Bridge br-ex
-        Port br-ex
-            Interface br-ex
-                type: internal
-        Port enp7s0
-            Interface enp7s0
-                type: system
-    ovs_version: "2.17.5"
-
-$ sudo nmcli conn
-NAME             UUID                                  TYPE           DEVICE 
-ovs-if-br-ex     9a690d2e-e92e-4f1c-8842-5bfceaf77295  ovs-interface  br-ex  
-enp1s0           d238db6d-f3e2-322d-b6a0-98f0087c2d88  ethernet       enp1s0 
-br-ex            c00af4d2-f659-4c1a-b511-f702fb9d3284  ovs-bridge     br-ex  
-ovs-if-enp7s0    43e9e29f-5bc3-46e4-aa57-5172a1f5c3f1  ethernet       enp7s0 
-ovs-port-br-ex   91b75c65-b962-4c55-b699-2a280c49c1a9  ovs-port       br-ex  
-ovs-port-enp7s0  f090b0f7-a541-4833-9f56-374f3284b732  ovs-port       enp7s0 
-
-$ ping -4 -c 1 google.com
-PING google.com (142.251.16.100) 56(84) bytes of data.
-64 bytes from bl-in-f100.1e100.net (142.251.16.100): icmp_seq=1 ttl=53 time=8.03 ms
-
---- google.com ping statistics ---
-1 packets transmitted, 1 received, 0% packet loss, time 0ms
-rtt min/avg/max/mdev = 8.028/8.028/8.028/0.000 ms
-```
-> Virtual Machine `infra-1` Commands: END
-
 ## Download and Build OVN-Kubernetes
 
 > Remote Server Commands: BEGIN
@@ -238,8 +173,9 @@ The [install-ovnk.sh](../scripts/install-ovnk.sh) script will download and build
 OVN-Kubernetes.
 Run the script in the Remote Server.
 
+
 ```console
-cd ~/src/dpu-software/
+cd ${WORKING_DIR}/dpu-software/
 ./scripts/install-ovnk.sh
 ```
 
@@ -251,6 +187,7 @@ As a summary, the script above performs the following:
 * Download OVN-Kubernetes.
 * Build OVN-Kubernetes container image.
 * Push OVN-Kubernetes container image to HTTP Registry on Gateway.
+* Generate yaml files for deploying OVN-Kubernetes.
 
 > Remote Server Commands: END
 
@@ -305,88 +242,3 @@ popd
 ```
 
 > Virtual Machine Commands: END
-
-
-## Start Kubernetes
-
-```console
-sudo kubeadm init --token-ttl 0 --pod-network-cidr=10.244.0.0/16 --cri-socket=unix:///var/run/containerd/containerd.sock
-:
-addons] Applied essential addon: CoreDNS
-[addons] Applied essential addon: kube-proxy
-
-Your Kubernetes control-plane has initialized successfully!
-
-To start using your cluster, you need to run the following as a regular user:
-
-  mkdir -p $HOME/.kube
-  sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
-  sudo chown $(id -u):$(id -g) $HOME/.kube/config
-
-Alternatively, if you are the root user, you can run:
-
-  export KUBECONFIG=/etc/kubernetes/admin.conf
-
-You should now deploy a pod network to the cluster.
-Run "kubectl apply -f [podnetwork].yaml" with one of the options listed at:
-  https://kubernetes.io/docs/concepts/cluster-administration/addons/
-
-Then you can join any number of worker nodes by running the following on each as root:
-
-kubeadm join 192.168.122.70:6443 --token vgp7i3.fn12uc2mztw6gdoj \
-	--discovery-token-ca-cert-hash sha256:133a1dce9751e74f63810be1f3238537dd6792926f35214813fcc95098a52726 
-```
-
-## Start OVN-Kubernetes
-
-br-int might be added by OVN, but the files for it are not created in `/var/run/openvswitch`.
-
-```console
-kubectl logs -n ovn-kubernetes ovnkube-node-2lhq7 -c ovn-controller
-:
-2023-04-18T21:42:33.907Z|00043|rconn|WARN|unix:/var/run/openvswitch/br-int.mgmt: connection failed (No such file or directory)
-2023-04-18T21:42:41.915Z|00044|rconn|WARN|unix:/var/run/openvswitch/br-int.mgmt: connection failed (No such file or directory)
-2023-04-18T21:42:41.915Z|00045|rconn|WARN|unix:/var/run/openvswitch/br-int.mgmt: connection failed (No such file or directory)
-:
-```
-
-The best workaroud is to pre-create br-int before the OVN Kubernetes installation:
-```console
-sudo ovs-vsctl add-br br-int
-```
-
-
-```console
-# Create OVN namespace, service accounts, ovnkube-db headless service, configmap, and policies
-kubectl create -f $WORKING_DIR/ovn-kubernetes/dist/yaml/ovn-setup.yaml
-
-# Optionally, if you plan to use the Egress IPs or EgressFirewall features, create the corresponding CRDs:
-# create egressips.k8s.ovn.org CRD
-kubectl create -f $WORKING_DIR/ovn-kubernetes/dist/yaml/k8s.ovn.org_egressips.yaml
-# create egressfirewalls.k8s.ovn.org CRD
-kubectl create -f $WORKING_DIR/ovn-kubernetes/dist/yaml/k8s.ovn.org_egressfirewalls.yaml
-
-# Run ovnkube-db deployment.
-kubectl create -f $WORKING_DIR/ovn-kubernetes/dist/yaml/ovnkube-db.yaml
-
-# Run ovnkube-master deployment
-# To run ovnkube-master deployment with both cluster manager and network controller manager as one container)
-kubectl create -f $WORKING_DIR/ovn-kubernetes/dist/yaml/ovnkube-master.yaml
-
-# or to run ovnkube-master deployment with cluster manager and network controller manager as independent containers.
-#kubectl create -f $WORKING_DIR/ovn-kubernetes/dist/yaml/ovnkube-cm-ncm.yaml
-
-# Run ovnkube daemonset for nodes
-kubectl create -f $WORKING_DIR/ovn-kubernetes/dist/yaml/ovnkube-node.yaml
-
-kubectl delete daemonsets -n kube-system kube-proxy
-```
-
-
-In order to uninstall OVN kubernetes:
-```console
-kubectl delete -f $WORKING_DIR/ovn-kubernetes/dist/yaml/ovnkube-node.yaml
-kubectl delete -f $WORKING_DIR/ovn-kubernetes/dist/yaml/ovnkube-master.yaml
-kubectl delete -f $WORKING_DIR/ovn-kubernetes/dist/yaml/ovnkube-db.yaml
-kubectl delete -f $WORKING_DIR/ovn-kubernetes/dist/yaml/ovn-setup.yaml
-```

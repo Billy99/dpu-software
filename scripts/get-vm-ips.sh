@@ -11,7 +11,7 @@ if [[ "$PWD" != */scripts ]]; then
 fi
 
 PRINT_FMT="basic"
-if [ $1 == "bashrc" ]; then
+if [[ $1 == "bashrc" ]]; then
     PRINT_FMT="bashrc"
 fi
 
@@ -34,16 +34,21 @@ echo
 
 print_node_data() {
     node_name=$1
-    MAC_ADDR=$(virsh dumpxml ${node_name} |  grep -B 1 "network='default'"| grep "mac address" | awk -F"'" '{print $2}')
-    IP_ADDR=$(journalctl -r -n 2000 | grep -m1 "${MAC_ADDR}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+')
-
-    if [[ ${PRINT_FMT} == "basic" ]]; then
-        echo -e "MAC_ADDR=${MAC_ADDR}\tIP_ADDR=${IP_ADDR}  \tNODE=${node_name}"
+    VM_STATE=$(virsh list --all | grep ${node_name} | awk -F' {2,}' '{print $3}')
+    if [[ -z ${VM_STATE} ]]; then
+        echo "${node_name} does not exist. Skipping ..."
     else
-        NODE_NUM=${node_name#*-}
-        NODE_PREFIX=${node_name:0:1}
-        LAST_IP_OCTET=${IP_ADDR##*.}
-        echo "alias vm${NODE_PREFIX}${NODE_NUM}='svm ${LAST_IP_OCTET}'"
+        MAC_ADDR=$(virsh dumpxml ${node_name} |  grep -B 1 "network='default'"| grep "mac address" | awk -F"'" '{print $2}')
+        IP_ADDR=$(journalctl -r -n 2000 | grep -m1 "${MAC_ADDR}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+')
+
+        if [[ ${PRINT_FMT} == "basic" ]]; then
+            echo -e "MAC_ADDR=${MAC_ADDR}\tIP_ADDR=${IP_ADDR}  \tNODE=${node_name}"
+        else
+            NODE_NUM=${node_name#*-}
+            NODE_PREFIX=${node_name:0:1}
+            LAST_IP_OCTET=${IP_ADDR##*.}
+            echo "alias vm${NODE_PREFIX}${NODE_NUM}='svm ${LAST_IP_OCTET}'"
+        fi
     fi
 }
 
