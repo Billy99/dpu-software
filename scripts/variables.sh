@@ -134,3 +134,15 @@ get_node_type() {
 
     echo ${NODE_TYPE}
 }
+
+get_node_ip() {
+    node_name=$1
+
+    VM_STATE=$(sudo virsh list --all | grep ${node_name} | awk -F' {2,}' '{print $3}')
+    if [[ ${VM_STATE} == "running" ]]; then
+        MAC_ADDR=$(sudo virsh dumpxml ${node_name} |  grep -B 1 "network='default'"| grep "mac address" | awk -F"'" '{print $2}')
+        IP_ADDR=$(sudo journalctl -r -n 2000 | grep -m1 "${MAC_ADDR}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+')
+    fi
+
+    echo $IP_ADDR
+}

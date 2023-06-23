@@ -8,56 +8,44 @@ fi
 # Source the variables in other files
 . variables.sh
 
-push_scripts_yaml() {
+
+push_scripts() {
     node_name=$1
+    ip_addr=$2
+
+    echo "Pushing \"scripts\" to ${node_name} ${ip_addr}"
+    scp -r ../scripts/. ${USER}@${ip_addr}:${WORKING_DIR}/dpu-software/scripts/.
+    echo
+}
+
+push_yaml() {
+    node_name=$1
+    ip_addr=$2
     NODE_PREFIX=${node_name%-*}
 
-    VM_STATE=$(sudo virsh list --all | grep ${node_name} | awk -F' {2,}' '{print $3}')
-    if [[ ${VM_STATE} != "running" ]]; then
-        echo "Push \"scripts\" and \"yaml\": ${node_name} does not exist or is not running. Skipping ..."
-        echo
-    else
-        MAC_ADDR=$(sudo virsh dumpxml ${node_name} |  grep -B 1 "network='default'"| grep "mac address" | awk -F"'" '{print $2}')
-        IP_ADDR=$(sudo journalctl -r -n 2000 | grep -m1 "${MAC_ADDR}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+')
-        echo "Pushing \"scripts\" and \"yaml\" to ${node_name} ${IP_ADDR}"
-        scp -r ../scripts/. ${USER}@${IP_ADDR}:${WORKING_DIR}/dpu-software/scripts/.
-        scp -r ../data/${NODE_PREFIX}/yaml/. ${USER}@${IP_ADDR}:${WORKING_DIR}/dpu-software/data/${NODE_PREFIX}/yaml/.
-        echo
-    fi
+    echo "Pushing \"yaml\" to ${node_name} ${ip_addr}"
+    scp -r ../data/${NODE_PREFIX}/yaml/. ${USER}@${ip_addr}:${WORKING_DIR}/dpu-software/data/${NODE_PREFIX}/yaml/.
+    echo
 }
 
 pull_output() {
     node_name=$1
+    ip_addr=$2
     NODE_PREFIX=${node_name%-*}
 
-    VM_STATE=$(sudo virsh list --all | grep ${node_name} | awk -F' {2,}' '{print $3}')
-    if [[ ${VM_STATE} != "running" ]]; then
-        echo "Pull \"output\": ${node_name} does not exist or is not running. Skipping ..."
-        echo
-    else
-        MAC_ADDR=$(sudo virsh dumpxml ${node_name} |  grep -B 1 "network='default'"| grep "mac address" | awk -F"'" '{print $2}')
-        IP_ADDR=$(sudo journalctl -r -n 2000 | grep -m1 "${MAC_ADDR}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+')
-        echo "Pulling \"output\" from ${node_name} ${IP_ADDR}"
-        scp -r ${USER}@${IP_ADDR}:${WORKING_DIR}/dpu-software/data/${NODE_PREFIX}/output/. ../data/${NODE_PREFIX}/output/.
-        echo
-    fi
+    echo "Pulling \"output\" from ${node_name} ${ip_addr}"
+    scp -r ${USER}@${ip_addr}:${WORKING_DIR}/dpu-software/data/${NODE_PREFIX}/output/. ../data/${NODE_PREFIX}/output/.
+    echo
 }
 
 push_output() {
     node_name=$1
+    ip_addr=$2
     NODE_PREFIX=${node_name%-*}
 
-    VM_STATE=$(sudo virsh list --all | grep ${node_name} | awk -F' {2,}' '{print $3}')
-    if [[ ${VM_STATE} != "running" ]]; then
-        echo "Push \"output\": ${node_name} does not exist or is not running. Skipping ..."
-        echo
-    else
-        MAC_ADDR=$(sudo virsh dumpxml ${node_name} |  grep -B 1 "network='default'"| grep "mac address" | awk -F"'" '{print $2}')
-        IP_ADDR=$(sudo journalctl -r -n 2000 | grep -m1 "${MAC_ADDR}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+')
-        echo "Pushing \"output\" to ${node_name} ${IP_ADDR}"
-        scp -r ../data/${NODE_PREFIX}/output/. ${USER}@${IP_ADDR}:${WORKING_DIR}/dpu-software/data/${NODE_PREFIX}/output/.
-        echo
-    fi
+    echo "Pushing \"output\" to ${node_name} ${ip_addr}"
+    scp -r ../data/${NODE_PREFIX}/output/. ${USER}@${ip_addr}:${WORKING_DIR}/dpu-software/data/${NODE_PREFIX}/output/.
+    echo
 }
 
 echo
@@ -80,32 +68,71 @@ echo "Push dpu-software to all VMs"
 echo "#################################"
 for NODE in "${GATEWAY_LIST[@]}"
 do
-    push_scripts_yaml ${NODE}
+    NODE_IP_ADDR=$(get_node_ip ${NODE})
+    if [[ -z ${NODE_IP_ADDR} ]]; then
+        echo "${node_name} does not exist or is not running. Skipping ..."
+    else
+        push_scripts ${NODE} ${NODE_IP_ADDR}
+    fi
 done
+
 for NODE in "${INFRA_CTRL_LIST[@]}"
 do
-    push_scripts_yaml ${NODE}
-    pull_output ${NODE}
+    NODE_IP_ADDR=$(get_node_ip ${NODE})
+    if [[ -z ${NODE_IP_ADDR} ]]; then
+        echo "${node_name} does not exist or is not running. Skipping ..."
+    else
+        push_scripts ${NODE} ${NODE_IP_ADDR}
+        push_yaml ${NODE} ${NODE_IP_ADDR}
+        pull_output ${NODE} ${NODE_IP_ADDR}
+    fi
 done
+
 for NODE in "${INFRA_DPU_LIST[@]}"
 do
-    push_scripts_yaml ${NODE}
-    push_output ${NODE}
+    NODE_IP_ADDR=$(get_node_ip ${NODE})
+    if [[ -z ${NODE_IP_ADDR} ]]; then
+        echo "${node_name} does not exist or is not running. Skipping ..."
+    else
+        push_scripts ${NODE} ${NODE_IP_ADDR}
+        #push_yaml ${NODE} ${NODE_IP_ADDR}
+        push_output ${NODE} ${NODE_IP_ADDR}
+    fi
 done
+
 for NODE in "${TENANT_CTRL_LIST[@]}"
 do
-    push_scripts_yaml ${NODE}
-    pull_output ${NODE}
+    NODE_IP_ADDR=$(get_node_ip ${NODE})
+    if [[ -z ${NODE_IP_ADDR} ]]; then
+        echo "${node_name} does not exist or is not running. Skipping ..."
+    else
+        push_scripts ${NODE} ${NODE_IP_ADDR}
+        push_yaml ${NODE} ${NODE_IP_ADDR}
+        pull_output ${NODE} ${NODE_IP_ADDR}
+    fi
 done
+
 for NODE in "${TENANT_DPU_HOST_LIST[@]}"
 do
-    push_scripts_yaml ${NODE}
-    push_output ${NODE}
+    NODE_IP_ADDR=$(get_node_ip ${NODE})
+    if [[ -z ${NODE_IP_ADDR} ]]; then
+        echo "${node_name} does not exist or is not running. Skipping ..."
+    else
+        push_scripts ${NODE} ${NODE_IP_ADDR}
+        #push_yaml ${NODE} ${NODE_IP_ADDR}
+        push_output ${NODE} ${NODE_IP_ADDR}
+    fi
 done
+
 for NODE in "${TENANT_WORKER_LIST[@]}"
 do
-    push_scripts_yaml ${NODE}
-    push_output ${NODE}
+    NODE_IP_ADDR=$(get_node_ip ${NODE})
+    if [[ -z ${NODE_IP_ADDR} ]]; then
+        echo "${node_name} does not exist or is not running. Skipping ..."
+    else
+        push_scripts ${NODE} ${NODE_IP_ADDR}
+        push_output ${NODE} ${NODE_IP_ADDR}
+    fi
 done
 
 

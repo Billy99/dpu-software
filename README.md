@@ -89,5 +89,4 @@ Below are the items that still need to be completed:
 
 * On DPUs (`infra-2` and `infra-3`), plumb VF0 (`tapx-vf0-i`) into OvS.
 * Figure out how to plumb TAPs into OVN-Kubernetes
-* Update docs to launch Kubernetes.
 * Update docs to deploy OVN-Kubernetes in different modes.
